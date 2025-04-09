@@ -170,17 +170,24 @@ struct ProductView: View {
                     bundleIdentifier: archive.bundleIdentifier,
                     region: account.countryCode
                 )
+                print("iTunes Lookup Response: \(app)")
+                
                 let item = try storeClient.item(
                     identifier: String(app.identifier),
                     directoryServicesIdentifier: account.storeResponse.directoryServicesIdentifier
                 )
+                print("Store Item Response: \(item)")
+                
                 let id = Downloads.this.add(request: .init(
                     account: account,
                     package: archive,
                     item: item
                 ))
+                print("Download Request Added: ID = \(id)")
+                
                 Downloads.this.resume(requestID: id)
             } catch {
+                print("Download Error: \(error)")
                 DispatchQueue.main.async {
                     obtainDownloadURL = false
                     if (error as NSError).code == 9610 {
@@ -207,25 +214,32 @@ struct ProductView: View {
         acquiringLicense = true
         DispatchQueue.global().async {
             do {
-                guard let account = try AppStore.this.rotate(id: account.id) else {
-                    throw NSError(domain: "AppStore", code: 401, userInfo: [
+                guard let rotatedAccount = try AppStore.this.rotate(id: account.id) else {
+                    let error = NSError(domain: "AppStore", code: 401, userInfo: [
                         NSLocalizedDescriptionKey: NSLocalizedString(
                             "Failed to rotate password token, please re-authenticate within account page.",
                             comment: ""
                         ),
                     ])
+                    print("Account Rotation Error: \(error)")
+                    throw error
                 }
-                try ApplePackage.purchase(
-                    token: account.storeResponse.passwordToken,
-                    directoryServicesIdentifier: account.storeResponse.directoryServicesIdentifier,
+                print("Account Rotation Response: \(rotatedAccount)")
+                
+                let purchaseResult: () = try ApplePackage.purchase(
+                    token: rotatedAccount.storeResponse.passwordToken,
+                    directoryServicesIdentifier: rotatedAccount.storeResponse.directoryServicesIdentifier,
                     trackID: archive.identifier,
-                    countryCode: account.countryCode
+                    countryCode: rotatedAccount.countryCode
                 )
+                print("Purchase Response: \(purchaseResult)")
+                
                 DispatchQueue.main.async {
                     acquiringLicense = false
                     licenseHint = NSLocalizedString("Request Successes", comment: "")
                 }
             } catch {
+                print("License Acquisition Error: \(error)")
                 DispatchQueue.main.async {
                     acquiringLicense = false
                     licenseHint = error.localizedDescription
